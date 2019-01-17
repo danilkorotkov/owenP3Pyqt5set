@@ -1,0 +1,4 @@
+#!/bin/bash
+cd /
+cd /home/pi/Documents/Monkey\ Studio/qt5
+python3 metro_uic.py
