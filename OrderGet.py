@@ -107,10 +107,14 @@ class OrderWindow(QMainWindow, Ui_MainWindow):
 
         try:
 
-            response = requests.post(URL, timeout=20, data=payload)
+            response = requests.post(URL, timeout=20, params=payload)
             print('Answer', response.status_code, response.text)
 
-            self.statusBar.showMessage('Отправка прошла успешно')
+            if response.status_code == 200:
+                self.statusBar.showMessage('Отправка прошла успешно. Код ' + str(response.status_code))
+            else:
+                self.ChangeStatus(i)
+                self.statusBar.showMessage('Ошибка отправки ' + str(response.status_code) + response.text)
 
         except requests.exceptions.RequestException as e:  # This is the correct syntax
             print('Ошибка  1', e)
@@ -130,9 +134,6 @@ class OrderWindow(QMainWindow, Ui_MainWindow):
 
             response = requests.post(URL, timeout=20)
             datajson = response.json()
-
-            #data = json.load(response.json())
-            #print(response.json())
 
             OrdersList = datajson['orders']
 
