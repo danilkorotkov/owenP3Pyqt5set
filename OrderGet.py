@@ -6,26 +6,20 @@ from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget
 from PyQt5.Qt import Qt
 import requests
 import os
+import json
 os.environ["DISPLAY"] = ":0" #remote a
 
-MainInterfaceWindow = "order.ui"
+MainInterfaceWindow = "order_w.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(MainInterfaceWindow)
 
-
 class OrderWindow(QMainWindow, Ui_MainWindow):
-    """MainWindow inherits QMainWindow"""
-
-    orders = [['18-000001\nот 25 мая 2019', 0],
-              ['28-000001\nот 25 мая 2019', 1],
-              ['28-000002\nот 31 мая 2019', 0]]
+    orders = []
 
     def __init__(self, parent=None):
         super(OrderWindow, self).__init__(parent)
         Ui_MainWindow.__init__(self)
         self.setupUi(self)
-        #self.setWindowModality(QtCore.Qt.WindowModal)
-        #self.setWindowModality(QtCore.Qt.WindowModal)
-        #self.setWindowModality(QtCore.Qt.ApplicationModal)
+        self.setWindowModality(QtCore.Qt.WindowModal)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.listWidget.verticalScrollBar().setStyleSheet(_fromUtf8(
             "QScrollBar:vertical {width: 40px; background: rgb(194, 194, 194); margin: 0px;}\n"
@@ -36,11 +30,22 @@ class OrderWindow(QMainWindow, Ui_MainWindow):
             "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {background: NONE;}"))
 
         self.ExitButton.pressed.connect(self.exit)
-        self.listWidget.itemDoubleClicked.connect(self.letsgo)
+        self.listWidget.itemDoubleClicked.connect(self.OrderClick)
+        self.RefButton.pressed.connect(self.refresh)
 
-        self.get_orders()
-        self.post_orders()
-        self.fill_orders()
+        self.refresh()
+
+    def refresh(self):
+       """
+       обновить таблицу
+       :return:
+       """
+       self.listWidget.clear()
+       self.update()
+       self.orders.clear()
+       self.statusBar.showMessage('Ищем заказы...')
+       self.post_orders()
+       self.fill_orders()
 
     def __del__(self):
         self.ui = None
@@ -59,62 +64,94 @@ class OrderWindow(QMainWindow, Ui_MainWindow):
             item = self.listWidget.item(i)
             if self.orders[i][1] == 0:
                 item.setBackground(QtGui.QColor("red"))
-            else:
-                item.setBackground(QtGui.QColor("green"))
+            elif self.orders[i][1] == 1:
+                item.setBackground(QtGui.QColor("orange"))
 
-    def letsgo(self):
+    def ChangeStatus(self, i):
+        '''
+        смена статуса заказа с отрисовкай в таблице
+        '''
+        item = self.listWidget.item(i)
+        if self.orders[i][1] == 0: # если в работе, то готов
+            item.setBackground(QtGui.QColor("green"))
+            self.orders[i][1] = 2
+        elif self.orders[i][1] == 1: # если в производстве, то готов
+            item.setBackground(QtGui.QColor("green"))
+            self.orders[i][1] = 2
+        elif self.orders[i][1] == 2: # если готов, то возвращаем предыдущий
+            self.orders[i][1] = self.orders[i][3]
+            if self.orders[i][1] == 0:
+                item.setBackground(QtGui.QColor("red"))
+            elif self.orders[i][1] == 1:
+                item.setBackground(QtGui.QColor("orange"))
+
+
+    def OrderClick(self):
         """
         обработка даблклика на заказе
-        :param self:
-        :return:
         """
-        number = self.orders[self.listWidget.currentRow()][0].replace("\n", " ")[:9]
+        i = self.listWidget.currentRow()
+        number = self.orders[i][0].replace("\n", " ")[:11]
 
-        item = self.listWidget.item(self.listWidget.currentRow())
-        if self.orders[self.listWidget.currentRow()][1] != 0:
-            item.setBackground(QtGui.QColor("red"))
-            self.orders[self.listWidget.currentRow()][1] = 0
-        else:
-            item.setBackground(QtGui.QColor("green"))
-            self.orders[self.listWidget.currentRow()][1] = 1
+        self.statusBar.showMessage('Отправляем изменения заказа ' + number + '...')
 
-        status = self.orders[self.listWidget.currentRow()][1]
-        self.statusBar.showMessage('' + number + ' status = ' + str(status))
-        print ('' + number + ' status = ' + str(status))
+        self.ChangeStatus(i)
 
-    def get_orders(self):
-        """
-        GET запрос к 1с серверу
-        :return:
-        """
-        URL = "http://zaborikinovgorod.ru/HTTP_POST/hs/Comagic/v2/IncomingCall"
-        PARAMS = {'request': 'getorders'}
+        status = self.orders[i][1]
+        print ('' + number + 'new status = ' + str(status) + ' initial status = ' + str(self.orders[i][3]))
+
+        #URL = 'http://192.168.1.144/TEST/hs/Comagic/v2/updateorder'
+        URL = 'http://zaborikinovgorod.ru/TEST/hs/Comagic/v2/updateorder'
+        payload = {'GUID': self.orders[i][2], 'status': self.orders[i][3]}
+        print('payload= ', payload)
+
         try:
-            r = requests.get(url=URL, params=PARAMS)
-            data = r.json()
-            print(data)
-        except requests.exceptions.RequestException as e:  # This is the correct syntax
-            print (e)
-        except ValueError as e:
-            print (e)
 
-    def post_orders(self, number='18-000001', status=1):
+            response = requests.post(URL, timeout=20, data=payload)
+            print('Answer', response.status_code, response.text)
+
+            self.statusBar.showMessage('Отправка прошла успешно')
+
+        except requests.exceptions.RequestException as e:  # This is the correct syntax
+            print('Ошибка  1', e)
+            self.statusBar.showMessage(str(e))
+            self.ChangeStatus(i)
+        except ValueError as e:
+            print('Ошибка 2', e)
+            self.statusBar.showMessage(str(e))
+            self.ChangeStatus(i)
+
+    def post_orders(self):
         """
         POST запрос к 1с серверу
-        :return:
         """
-        URL = "http:/zaborikinovgorod.ru/HTTP_POST/hs/Comagic/v2/IncomingCall"
-        PARAMS = {'request': 'sendorders',
-                  'order': number,
-                  'data': status}
+        URL = 'http://zaborikinovgorod.ru/TEST/hs/Comagic/v2/orders'
         try:
-            r = requests.post(url=URL, params=PARAMS)
-            answer = r.json()
-            print(answer)
+
+            response = requests.post(URL, timeout=20)
+            datajson = response.json()
+
+            #data = json.load(response.json())
+            #print(response.json())
+
+            OrdersList = datajson['orders']
+
+            for i in range(len(OrdersList)):
+                self.orders.append([OrdersList[i]['order'],
+                                    OrdersList[i]['status'],
+                                    OrdersList[i]['GUID'],
+                                    OrdersList[i]['status']])
+
+            self.statusBar.showMessage('Получение прошло успешно')
+
         except requests.exceptions.RequestException as e:  # This is the correct syntax
-            print (e)
+            print('Ошибка 1', e)
+            self.orders.append(['Ошибка\nсоединения', 0])
+            self.statusBar.showMessage(str(e))
         except ValueError as e:
-            print (e)
+            print('Ошибка 2', e)
+            self.orders.append(['Пришла\nфигня', 0])
+            self.statusBar.showMessage(str(e))
 
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
