@@ -126,7 +126,7 @@ class OrderWindow(QMainWindow, Ui_MainWindow):
 
     def ChangeStatus(self, i):
         '''
-        смена статуса заказа с отрисовкай в таблице
+        смена статуса заказа с отрисовкой в таблице
         '''
         item = self.listWidget.item(i)
         if self.orders[i][1] == 0: # если в работе, то готов
