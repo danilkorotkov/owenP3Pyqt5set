@@ -36,8 +36,8 @@ class PostThread(QtCore.QThread):
 
 class OrderWindow(QMainWindow, Ui_MainWindow):
     orders = []
-    importURL = 'http://192.168.1.144/TEST/hs/Comagic/v2/orders'
-    exportURL = 'http://192.168.1.144/TEST/hs/Comagic/v2/updateorder'
+    importURL = 'http://zaborikinovgorod.ru/HTTP_POST/hs/Comagic/v2/orders'
+    exportURL = 'http://zaborikinovgorod.ru/HTTP_POST/hs/Comagic/v2/updateorder'
     timeout = 20
     readyToNext = True
 
